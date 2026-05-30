@@ -375,3 +375,60 @@ async function chargerDashboard() {
     `;
   });
 }
+function activerMenus() {
+  const menus = document.querySelectorAll(".menu li");
+
+  menus.forEach((item) => {
+    item.addEventListener("click", () => {
+      menus.forEach(li => li.classList.remove("active"));
+      item.classList.add("active");
+
+      const texte = item.innerText;
+
+      if (texte.includes("Dashboard")) {
+        location.reload();
+      }
+
+      if (texte.includes("Missions")) {
+        afficherPage("Missions", "Liste des missions enregistrées.");
+      }
+
+      if (texte.includes("Nouvelle mission")) {
+        ouvrirFormulaireMission();
+      }
+
+      if (texte.includes("Employés")) {
+        afficherPage("Employés", "Gestion des employés Prowash.");
+      }
+
+      if (texte.includes("Clients")) {
+        afficherPage("Clients", "Gestion des clients.");
+      }
+
+      if (texte.includes("Photos")) {
+        afficherPage("Photos", "Photos avant / après des interventions.");
+      }
+
+      if (texte.includes("Statistiques")) {
+        afficherPage("Statistiques", "Statistiques de l'activité.");
+      }
+
+      if (texte.includes("Paramètres")) {
+        afficherPage("Paramètres", "Réglages de l'application.");
+      }
+    });
+  });
+}
+
+function afficherPage(titre, texte) {
+  const content = document.querySelector(".content");
+
+  if (!content) return;
+
+  content.innerHTML = `
+    <div class="panel" style="grid-column:1 / -1;">
+      <h2>${titre}</h2>
+      <p style="color:#9eb8d1;margin-top:15px;">${texte}</p>
+    </div>
+  `;
+}
