@@ -210,7 +210,7 @@ function ouvrirFormulaireMission() {
         <option>Lavage poubelle</option>
       </select>
 
-      <input id="ouvrierNom" placeholder="Nom de l'ouvrier">
+    
       <input id="prix" type="number" placeholder="Prix en €">
 
       <select id="statut">
