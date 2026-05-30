@@ -243,8 +243,8 @@ async function enregistrerMission() {
   const statut = document.getElementById("statut").value;
   const commentaire = document.getElementById("commentaire").value.trim();
 
-  if (!clientNom || !ouvrierNom || !prix) {
-    alert("Remplis au minimum : client, ouvrier et prix.");
+  if (!clientNom || !service || !prix) {
+    alert("Remplis au minimum : client, service et prix.");
     return;
   }
 
