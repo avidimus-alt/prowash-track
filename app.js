@@ -1,4 +1,4 @@
-const supabaseUrl = "https://lqbgwffzshwqhfmeixqo.supabase.co";
+const supabaseUrl = "https://ibqkbjwbwyimbxosnwca.supabase.co";
 const supabaseKey = "sb_publishable_4eW--E5CSpJhtS2M-5DSgA_H6FC1mg9";
 
 const supabaseClient = window.supabase.createClient(
@@ -54,7 +54,6 @@ function afficherApplication(user) {
 
   ajouterBoutonMission();
   chargerDashboard();
-  activerMenus();
 }
 
 function afficherConnexion() {
@@ -210,7 +209,7 @@ function ouvrirFormulaireMission() {
         <option>Lavage poubelle</option>
       </select>
 
-    
+      <input id="ouvrierNom" placeholder="Nom de l'ouvrier">
       <input id="prix" type="number" placeholder="Prix en €">
 
       <select id="statut">
@@ -239,12 +238,13 @@ async function enregistrerMission() {
   const clientTel = document.getElementById("clientTel").value.trim();
   const clientAdresse = document.getElementById("clientAdresse").value.trim();
   const service = document.getElementById("service").value;
+  const ouvrierNom = document.getElementById("ouvrierNom").value.trim();
   const prix = Number(document.getElementById("prix").value);
   const statut = document.getElementById("statut").value;
   const commentaire = document.getElementById("commentaire").value.trim();
 
-  if (!clientNom || !service || !prix) {
-    alert("Remplis au minimum : client, service et prix.");
+  if (!clientNom || !ouvrierNom || !prix) {
+    alert("Remplis au minimum : client, ouvrier et prix.");
     return;
   }
 
@@ -374,61 +374,4 @@ async function chargerDashboard() {
       </tr>
     `;
   });
-}
-function activerMenus() {
-  const menus = document.querySelectorAll(".menu li");
-
-  menus.forEach((item) => {
-    item.addEventListener("click", () => {
-      menus.forEach(li => li.classList.remove("active"));
-      item.classList.add("active");
-
-      const texte = item.innerText;
-
-      if (texte.includes("Dashboard")) {
-        location.reload();
-      }
-
-      if (texte.includes("Missions")) {
-        afficherPage("Missions", "Liste des missions enregistrées.");
-      }
-
-      if (texte.includes("Nouvelle mission")) {
-        ouvrirFormulaireMission();
-      }
-
-      if (texte.includes("Employés")) {
-        afficherPage("Employés", "Gestion des employés Prowash.");
-      }
-
-      if (texte.includes("Clients")) {
-        afficherPage("Clients", "Gestion des clients.");
-      }
-
-      if (texte.includes("Photos")) {
-        afficherPage("Photos", "Photos avant / après des interventions.");
-      }
-
-      if (texte.includes("Statistiques")) {
-        afficherPage("Statistiques", "Statistiques de l'activité.");
-      }
-
-      if (texte.includes("Paramètres")) {
-        afficherPage("Paramètres", "Réglages de l'application.");
-      }
-    });
-  });
-}
-
-function afficherPage(titre, texte) {
-  const content = document.querySelector(".content");
-
-  if (!content) return;
-
-  content.innerHTML = `
-    <div class="panel" style="grid-column:1 / -1;">
-      <h2>${titre}</h2>
-      <p style="color:#9eb8d1;margin-top:15px;">${texte}</p>
-    </div>
-  `;
 }
