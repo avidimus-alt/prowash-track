@@ -239,7 +239,6 @@ async function enregistrerMission() {
   const clientTel = document.getElementById("clientTel").value.trim();
   const clientAdresse = document.getElementById("clientAdresse").value.trim();
   const service = document.getElementById("service").value;
-  const ouvrierNom = document.getElementById("ouvrierNom").value.trim();
   const prix = Number(document.getElementById("prix").value);
   const statut = document.getElementById("statut").value;
   const commentaire = document.getElementById("commentaire").value.trim();
