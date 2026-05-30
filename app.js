@@ -54,6 +54,7 @@ function afficherApplication(user) {
 
   ajouterBoutonMission();
   chargerDashboard();
+  activerMenus();
 }
 
 function afficherConnexion() {
