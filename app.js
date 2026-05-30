@@ -8,10 +8,104 @@ const supabaseClient = window.supabase.createClient(
 
 console.log("SUPABASE CONNECTÉ :", supabaseUrl);
 
-document.addEventListener("DOMContentLoaded", () => {
+
+document.addEventListener("DOMContentLoaded", async () => {
+  installerProtectionConnexion();
+
+  const { data } = await supabaseClient.auth.getSession();
+
+  if (!data.session) {
+    afficherConnexion();
+    return;
+  }
+
+  afficherApplication(data.session.user);
+});
+
+function installerProtectionConnexion() {
+  const app = document.querySelector(".main");
+  const sidebar = document.querySelector(".sidebar");
+
+  if (app) app.style.display = "none";
+  if (sidebar) sidebar.style.display = "none";
+}
+
+function afficherApplication(user) {
+  const app = document.querySelector(".main");
+  const sidebar = document.querySelector(".sidebar");
+
+  if (app) app.style.display = "block";
+  if (sidebar) sidebar.style.display = "block";
+
+  const login = document.getElementById("loginScreen");
+  if (login) login.remove();
+
+  const userBox = document.querySelector(".user-box");
+  if (userBox) {
+    const email = user?.email || "Utilisateur";
+    userBox.innerHTML = `
+      <div class="avatar">${email.charAt(0).toUpperCase()}</div>
+      <div>
+        <strong>${email}</strong><br>
+        <button class="logout-btn" onclick="deconnexion()">Déconnexion</button>
+      </div>
+    `;
+  }
+
   ajouterBoutonMission();
   chargerDashboard();
-});
+}
+
+function afficherConnexion() {
+  const login = document.createElement("div");
+  login.id = "loginScreen";
+  login.className = "login-screen";
+
+  login.innerHTML = `
+    <div class="login-box">
+      <img src="logo-prowash.jpeg" alt="PROWASH" class="login-logo">
+      <h1>PROWASH <span>TRACK</span></h1>
+      <p>Connexion réservée aux ouvriers autorisés</p>
+
+      <input id="loginEmail" type="email" placeholder="Email">
+      <input id="loginPassword" type="password" placeholder="Mot de passe">
+
+      <button onclick="connexion()">Se connecter</button>
+      <small id="loginErreur"></small>
+    </div>
+  `;
+
+  document.body.appendChild(login);
+}
+
+async function connexion() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const erreur = document.getElementById("loginErreur");
+
+  if (!email || !password) {
+    erreur.innerText = "Entre ton email et ton mot de passe.";
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    erreur.innerText = "Connexion refusée. Vérifie l'email et le mot de passe.";
+    return;
+  }
+
+  afficherApplication(data.user);
+}
+
+async function deconnexion() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
 
 function ajouterBoutonMission() {
   const container = document.querySelector("header") || document.querySelector(".main") || document.body;
