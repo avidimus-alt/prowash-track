@@ -233,19 +233,21 @@ function fermerModal() {
   if (modal) modal.remove();
 }
 
-async function enregistrerMission() {
-  const clientNom = document.getElementById("clientNom").value.trim();
-  const clientTel = document.getElementById("clientTel").value.trim();
-  const clientAdresse = document.getElementById("clientAdresse").value.trim();
-  const service = document.getElementById("service").value;
-  const ouvrierNom = document.getElementById("ouvrierNom").value.trim();
-  const prix = Number(document.getElementById("prix").value);
-  const statut = document.getElementById("statut").value;
-  const commentaire = document.getElementById("commentaire").value.trim();
+const service = document.getElementById("service").value;
 
-  if (!clientNom || !ouvrierNom || !prix) {
-    alert("Remplis au minimum : client, ouvrier et prix.");
-    return;
+const {
+  data: { user }
+} = await supabaseClient.auth.getUser();
+
+const ouvrierNom = user?.email || "Admin";
+
+const prix = Number(document.getElementById("prix").value);
+const statut = document.getElementById("statut").value;
+const commentaire = document.getElementById("commentaire").value.trim();
+
+if (!clientNom || !prix) {
+  alert("Remplis au minimum : client et prix.");
+  return;
   }
 
   const { data: clientData, error: clientError } = await supabaseClient
@@ -264,30 +266,31 @@ async function enregistrerMission() {
     return;
   }
 
-  const { data: employeeData, error: employeeError } = await supabaseClient
-    .from("employees")
-    .insert({
-      nom: ouvrierNom,
-      role: "ouvrier"
-    })
-    .select()
-    .single();
+ const {
+  data: { user }
+} = await supabaseClient.auth.getUser();
 
-  if (employeeError) {
-    console.error(employeeError);
-    alert("Erreur ouvrier");
-    return;
+const { data: employeeData, error: employeeError } = await supabaseClient
+  .from("employes")
+  .select("id, nom, email, role")
+  .eq("email", user.email)
+  .single();
+
+if (employeeError) {
+  console.error(employeeError);
+  alert("Employé introuvable dans Supabase.");
+  return;
   }
 
   const { error: missionError } = await supabaseClient
     .from("missions")
     .insert({
       client_id: clientData.id,
-      employee_id: employeeData.id,
+      employe_id: employeeData.id,
       service: service,
       prix: prix,
       statut: statut,
-      date_intervention: new Date().toISOString().split("T")[0],
+      date_mission: new Date().toISOString().split("T")[0],
       commentaire: commentaire
     });
 
@@ -311,7 +314,7 @@ async function chargerDashboard() {
       prix,
       statut,
       clients(nom),
-      employees(nom)
+      employes(nom)
     `)
     .order("id", { ascending: false });
 
@@ -364,7 +367,7 @@ async function chargerDashboard() {
       <tr>
         <td>${mission.clients?.nom || "Client"}</td>
         <td>${mission.service}</td>
-        <td>${mission.employees?.nom || "Ouvrier"}</td>
+        <td>${mission.employes?.nom || "Ouvrier"}</td>
         <td>${mission.prix} €</td>
         <td>
           <span class="status ${statusClass}">
