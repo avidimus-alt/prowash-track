@@ -1,380 +1,288 @@
-const supabaseUrl = "https://ibqkbjwbwyimbxosnwca.supabase.co";
-const supabaseKey = "sb_publishable_4eW--E5CSpJhtS2M-5DSgA_H6FC1mg9";
+// =============================
+// CONFIGURATION SUPABASE
+// =============================
+// Remplace ces deux valeurs avant de déployer.
+const SUPABASE_URL = "https://lqbgwffzshwqhfmeixqo.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4eW--E5CSpJhtS2M-5DSgA_H6FC1mg9";
 
-const supabaseClient = window.supabase.createClient(
-  supabaseUrl,
-  supabaseKey
-);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-console.log("SUPABASE CONNECTÉ :", supabaseUrl);
-
+let currentUser = null;
+let currentEmployee = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  installerProtectionConnexion();
-
+  bindEvents();
   const { data } = await supabaseClient.auth.getSession();
-
-  if (!data.session) {
-    afficherConnexion();
-    return;
-  }
-
-  afficherApplication(data.session.user);
+  if (!data.session) return showLogin();
+  await startApp(data.session.user);
 });
 
-function installerProtectionConnexion() {
-  const app = document.querySelector(".main");
-  const sidebar = document.querySelector(".sidebar");
+function bindEvents() {
+  document.getElementById("loginBtn").addEventListener("click", login);
+  document.getElementById("forgotBtn").addEventListener("click", resetPassword);
+  document.getElementById("logoutBtn").addEventListener("click", logout);
 
-  if (app) app.style.display = "none";
-  if (sidebar) sidebar.style.display = "none";
+  document.querySelectorAll(".menu-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      document.querySelectorAll(".menu-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      await openPage(btn.dataset.page);
+    });
+  });
 }
 
-function afficherApplication(user) {
-  const app = document.querySelector(".main");
-  const sidebar = document.querySelector(".sidebar");
-
-  if (app) app.style.display = "block";
-  if (sidebar) sidebar.style.display = "block";
-
-  const login = document.getElementById("loginScreen");
-  if (login) login.remove();
-
-  const userBox = document.querySelector(".user-box");
-  if (userBox) {
-    const email = user?.email || "Utilisateur";
-    userBox.innerHTML = `
-      <div class="avatar">${email.charAt(0).toUpperCase()}</div>
-      <div>
-        <strong>${email}</strong><br>
-        <button class="logout-btn" onclick="deconnexion()">Déconnexion</button>
-      </div>
-    `;
-  }
-
-  ajouterBoutonMission();
-  chargerDashboard();
+function showLogin() {
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("app").classList.add("hidden");
 }
 
-function afficherConnexion() {
-  const login = document.createElement("div");
-  login.id = "loginScreen";
-  login.className = "login-screen";
-
-  login.innerHTML = `
-    <div class="login-box">
-      <img src="logo-prowash.jpeg" alt="PROWASH" class="login-logo">
-      <h1>PROWASH <span>TRACK</span></h1>
-      <p>Connexion réservée aux ouvriers autorisés</p>
-
-      <input id="loginEmail" type="email" placeholder="Email">
-      <input id="loginPassword" type="password" placeholder="Mot de passe">
-
-      <button onclick="connexion()">Se connecter</button>
-      <small id="loginErreur"></small>
-    </div>
-  `;
-
-  document.body.appendChild(login);
+function showApp() {
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
 }
 
-async function connexion() {
+async function login() {
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
-  const erreur = document.getElementById("loginErreur");
+  const message = document.getElementById("loginMessage");
+  message.textContent = "";
+  message.className = "";
 
   if (!email || !password) {
-    erreur.innerText = "Entre ton email et ton mot de passe.";
+    message.textContent = "Entre ton email et ton mot de passe.";
     return;
   }
 
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    console.error(error);
+    message.textContent = "Connexion refusée. Vérifie l'email et le mot de passe.";
+    return;
+  }
+  await startApp(data.user);
+}
+
+async function resetPassword() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const message = document.getElementById("loginMessage");
+  message.className = "";
+
+  if (!email) {
+    message.textContent = "Entre ton email avant de demander un nouveau mot de passe.";
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if (error) {
+    console.error(error);
+    message.textContent = "Impossible d'envoyer l'email de récupération.";
+    return;
+  }
+
+  message.className = "success";
+  message.textContent = "Email de récupération envoyé.";
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  currentEmployee = null;
+  showLogin();
+}
+
+async function startApp(user) {
+  currentUser = user;
+  currentEmployee = await getOrCreateEmployee(user);
+
+  const displayName = currentEmployee?.nom || user.email;
+  document.getElementById("userAvatar").textContent = displayName[0].toUpperCase();
+  document.getElementById("userName").textContent = displayName;
+  document.getElementById("userEmail").textContent = user.email;
+
+  showApp();
+  await openPage("dashboard");
+}
+
+async function getOrCreateEmployee(user) {
+  const { data, error } = await supabaseClient
+    .from("employes")
+    .select("*")
+    .eq("email", user.email)
+    .maybeSingle();
 
   if (error) {
-    erreur.innerText = "Connexion refusée. Vérifie l'email et le mot de passe.";
+    console.error(error);
+    alert("Erreur employé.");
+    return null;
+  }
+
+  if (data) return data;
+
+  const { data: created, error: createError } = await supabaseClient
+    .from("employes")
+    .insert({ nom: user.email.split("@")[0], email: user.email, role: "employe", actif: true })
+    .select()
+    .single();
+
+  if (createError) {
+    console.error(createError);
+    alert("Impossible de créer l'employé connecté.");
+    return null;
+  }
+
+  return created;
+}
+
+async function openPage(page) {
+  if (page === "dashboard") return renderDashboard();
+  if (page === "missions") return renderMissions();
+  if (page === "new-mission") return renderNewMission();
+  if (page === "employees") return renderEmployees();
+  if (page === "clients") return renderClients();
+  if (page === "stats") return renderStats();
+  if (page === "settings") return renderSettings();
+}
+
+function setContent(html) {
+  document.getElementById("pageContent").innerHTML = html;
+}
+
+async function fetchMissions() {
+  const { data, error } = await supabaseClient
+    .from("missions")
+    .select(`id, service, prix, statut, date_mission, commentaire, clients(nom,telephone,adresse), employes(nom,email)`)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    alert("Erreur de chargement des missions.");
+    return [];
+  }
+  return data || [];
+}
+
+async function renderDashboard() {
+  const missions = await fetchMissions();
+  const total = missions.length;
+  const enCours = missions.filter(m => m.statut === "En cours").length;
+  const terminees = missions.filter(m => m.statut === "Terminé").length;
+  const ca = missions.reduce((sum, m) => sum + Number(m.prix || 0), 0);
+  const clientsCount = new Set(missions.map(m => m.clients?.nom).filter(Boolean)).size;
+  const employesCount = new Set(missions.map(m => m.employes?.email).filter(Boolean)).size;
+
+  setContent(`
+    <section class="cards">
+      <div class="card blue"><h3>Interventions</h3><h2>${total}</h2><p>Total</p></div>
+      <div class="card orange"><h3>En cours</h3><h2>${enCours}</h2><p>Actives</p></div>
+      <div class="card green"><h3>Terminées</h3><h2>${terminees}</h2><p>Réalisées</p></div>
+      <div class="card purple"><h3>CA</h3><h2>${ca} €</h2><p>Revenus</p></div>
+    </section>
+    <section class="grid-2">
+      <div class="panel"><h2>Dernières missions</h2>${missionsTable(missions.slice(0, 6))}</div>
+      <div class="panel"><h2>Résumé</h2><table><tr><td>Clients</td><td><strong>${clientsCount}</strong></td></tr><tr><td>Employés actifs</td><td><strong>${employesCount}</strong></td></tr><tr><td>Prestations</td><td><strong>${total}</strong></td></tr></table></div>
+    </section>
+  `);
+}
+
+async function renderMissions() {
+  const missions = await fetchMissions();
+  setContent(`<div class="panel"><h2>Missions</h2>${missionsTable(missions)}</div>`);
+}
+
+function missionsTable(missions) {
+  if (!missions.length) return `<p style="color:#9eb8d1;margin-top:15px;">Aucune mission enregistrée.</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Client</th><th>Service</th><th>Employé</th><th>Prix</th><th>Statut</th></tr></thead><tbody>${missions.map(m => `<tr><td>${safe(m.clients?.nom || "Client")}</td><td>${safe(m.service || "")}</td><td>${safe(m.employes?.nom || m.employes?.email || "Employé")}</td><td>${Number(m.prix || 0)} €</td><td><span class="status ${statusClass(m.statut)}">${safe(m.statut || "")}</span></td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function statusClass(statut) {
+  if (statut === "Terminé") return "done";
+  if (statut === "En cours") return "progress";
+  return "todo";
+}
+
+function renderNewMission() {
+  setContent(`<div class="panel"><h2>Nouvelle mission</h2><div class="form-grid"><input id="clientNom" placeholder="Nom du client" /><input id="clientTel" placeholder="Téléphone" /><input id="clientAdresse" placeholder="Adresse" /><select id="service"><option>Lavage extérieur</option><option>Lavage intérieur</option><option>Lavage complet</option><option>Lavage premium</option><option>Nettoyage canapé</option><option>Nettoyage tapis</option><option>Nettoyage terrasse</option><option>Lavage poubelle</option></select><input id="prix" type="number" min="0" placeholder="Prix en €" /><select id="statut"><option>À faire</option><option>En cours</option><option>Terminé</option></select><textarea id="commentaire" placeholder="Commentaire"></textarea><div class="form-actions"><button class="primary-btn" id="saveMissionBtn">Enregistrer</button><button class="secondary-btn" onclick="openPage('dashboard')">Annuler</button></div><small id="missionMessage"></small></div></div>`);
+  document.getElementById("saveMissionBtn").addEventListener("click", saveMission);
+}
+
+async function saveMission() {
+  const message = document.getElementById("missionMessage");
+  const clientNom = document.getElementById("clientNom").value.trim();
+  const clientTel = document.getElementById("clientTel").value.trim();
+  const clientAdresse = document.getElementById("clientAdresse").value.trim();
+  const service = document.getElementById("service").value;
+  const prix = Number(document.getElementById("prix").value);
+  const statut = document.getElementById("statut").value;
+  const commentaire = document.getElementById("commentaire").value.trim();
+  message.textContent = "";
+  message.className = "";
+
+  if (!clientNom || !prix) {
+    message.className = "error";
+    message.textContent = "Remplis au minimum le client et le prix.";
     return;
   }
 
-  afficherApplication(data.user);
-}
-
-async function deconnexion() {
-  await supabaseClient.auth.signOut();
-  location.reload();
-}
-
-
-function ajouterBoutonMission() {
-  const container = document.querySelector("header") || document.querySelector(".main") || document.body;
-
-  const btn = document.createElement("button");
-  btn.innerText = "+ Nouvelle mission";
-  btn.className = "btn-mission";
-  btn.onclick = ouvrirFormulaireMission;
-
-  container.appendChild(btn);
-
-  const style = document.createElement("style");
-  style.innerHTML = `
-    .btn-mission {
-      background: linear-gradient(135deg,#0066ff,#00bfff);
-      color: white;
-      border: none;
-      padding: 15px 22px;
-      border-radius: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 0 20px rgba(0,153,255,.7);
-      margin: 15px;
-    }
-
-    .modal-bg {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.75);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-
-    .modal {
-      width: 420px;
-      max-width: 92%;
-      background: #08192c;
-      padding: 25px;
-      border-radius: 25px;
-      box-shadow: 0 0 40px rgba(0,153,255,.7);
-      color: white;
-    }
-
-    .modal input,
-    .modal select,
-    .modal textarea {
-      width: 100%;
-      margin: 8px 0;
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid #00aaff;
-      background: #020b18;
-      color: white;
-    }
-
-    .modal button {
-      margin-top: 10px;
-      width: 100%;
-      padding: 13px;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    .save-btn {
-      background: #00aaff;
-      color: white;
-    }
-
-    .close-btn {
-      background: #444;
-      color: white;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-function ouvrirFormulaireMission() {
-  const modal = document.createElement("div");
-  modal.className = "modal-bg";
-
-  modal.innerHTML = `
-    <div class="modal">
-      <h2>Nouvelle mission</h2>
-
-      <input id="clientNom" placeholder="Nom du client">
-      <input id="clientTel" placeholder="Téléphone">
-      <input id="clientAdresse" placeholder="Adresse">
-
-      <select id="service">
-        <option>Lavage extérieur</option>
-        <option>Lavage intérieur</option>
-        <option>Lavage complet</option>
-        <option>Lavage premium</option>
-        <option>Nettoyage canapé</option>
-        <option>Nettoyage tapis</option>
-        <option>Nettoyage terrasse</option>
-        <option>Lavage poubelle</option>
-      </select>
-
-      <input id="ouvrierNom" placeholder="Nom de l'ouvrier">
-      <input id="prix" type="number" placeholder="Prix en €">
-
-      <select id="statut">
-        <option>À faire</option>
-        <option>En cours</option>
-        <option>Terminé</option>
-      </select>
-
-      <textarea id="commentaire" placeholder="Commentaire"></textarea>
-
-      <button class="save-btn" onclick="enregistrerMission()">Enregistrer</button>
-      <button class="close-btn" onclick="fermerModal()">Fermer</button>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-}
-
-function fermerModal() {
-  const modal = document.querySelector(".modal-bg");
-  if (modal) modal.remove();
-}
-
-const service = document.getElementById("service").value;
-
-const {
-  data: { user }
-} = await supabaseClient.auth.getUser();
-
-const ouvrierNom = user?.email || "Admin";
-
-const prix = Number(document.getElementById("prix").value);
-const statut = document.getElementById("statut").value;
-const commentaire = document.getElementById("commentaire").value.trim();
-
-if (!clientNom || !prix) {
-  alert("Remplis au minimum : client et prix.");
-  return;
+  if (!currentEmployee?.id) {
+    message.className = "error";
+    message.textContent = "Employé connecté introuvable.";
+    return;
   }
 
   const { data: clientData, error: clientError } = await supabaseClient
     .from("clients")
-    .insert({
-      nom: clientNom,
-      telephone: clientTel,
-      adresse: clientAdresse
-    })
+    .insert({ nom: clientNom, telephone: clientTel, adresse: clientAdresse })
     .select()
     .single();
 
   if (clientError) {
     console.error(clientError);
-    alert("Erreur client");
+    message.className = "error";
+    message.textContent = "Erreur client.";
     return;
-  }
-
- const {
-  data: { user }
-} = await supabaseClient.auth.getUser();
-
-const { data: employeeData, error: employeeError } = await supabaseClient
-  .from("employes")
-  .select("id, nom, email, role")
-  .eq("email", user.email)
-  .single();
-
-if (employeeError) {
-  console.error(employeeError);
-  alert("Employé introuvable dans Supabase.");
-  return;
   }
 
   const { error: missionError } = await supabaseClient
     .from("missions")
-    .insert({
-      client_id: clientData.id,
-      employe_id: employeeData.id,
-      service: service,
-      prix: prix,
-      statut: statut,
-      date_mission: new Date().toISOString().split("T")[0],
-      commentaire: commentaire
-    });
+    .insert({ client_id: clientData.id, employe_id: currentEmployee.id, service, prix, statut, date_mission: new Date().toISOString().slice(0, 10), commentaire });
 
   if (missionError) {
     console.error(missionError);
-    alert("Erreur mission");
+    message.className = "error";
+    message.textContent = "Erreur mission.";
     return;
   }
 
-  alert("Mission enregistrée avec succès !");
-  fermerModal();
-  chargerDashboard();
+  await renderDashboard();
 }
 
-async function chargerDashboard() {
-  const { data: missions, error } = await supabaseClient
-    .from("missions")
-    .select(`
-      id,
-      service,
-      prix,
-      statut,
-      clients(nom),
-      employes(nom)
-    `)
-    .order("id", { ascending: false });
+async function renderEmployees() {
+  const { data, error } = await supabaseClient.from("employes").select("*").order("created_at", { ascending: false });
+  if (error) return alert("Erreur employés."), console.error(error);
+  setContent(`<div class="panel"><h2>Employés</h2>${simpleTable(data || [], ["nom", "email", "telephone", "role", "actif"])}</div>`);
+}
 
-  if (error) {
-    console.error(error);
-    return;
-  }
+async function renderClients() {
+  const { data, error } = await supabaseClient.from("clients").select("*").order("created_at", { ascending: false });
+  if (error) return alert("Erreur clients."), console.error(error);
+  setContent(`<div class="panel"><h2>Clients</h2>${simpleTable(data || [], ["nom", "telephone", "adresse"])}</div>`);
+}
 
-  const total = missions.length;
-  const enCours = missions.filter(m => m.statut === "En cours").length;
-  const terminees = missions.filter(m => m.statut === "Terminé").length;
+async function renderStats() {
+  const missions = await fetchMissions();
   const ca = missions.reduce((sum, m) => sum + Number(m.prix || 0), 0);
+  setContent(`<div class="panel"><h2>Statistiques</h2><p>Total missions : <strong>${missions.length}</strong></p><p>Chiffre d'affaires : <strong>${ca} €</strong></p></div>`);
+}
 
-  document.querySelector(".card.blue h2").innerText = total;
-  document.querySelector(".card.orange h2").innerText = enCours;
-  document.querySelector(".card.green h2").innerText = terminees;
-  document.querySelector(".card.purple h2").innerText = ca + " €";
+function renderSettings() {
+  setContent(`<div class="panel"><h2>Paramètres</h2><p>Utilisateur connecté : <strong>${safe(currentUser?.email || "")}</strong></p><p>Rôle : <strong>${safe(currentEmployee?.role || "employe")}</strong></p></div>`);
+}
 
-  const clientsUniques = new Set(missions.map(m => m.clients?.nom).filter(Boolean));
-  const employesUniques = new Set(missions.map(m => m.employees?.nom).filter(Boolean));
+function simpleTable(rows, keys) {
+  if (!rows.length) return `<p style="color:#9eb8d1;margin-top:15px;">Aucune donnée.</p>`;
+  return `<div class="table-wrap"><table><thead><tr>${keys.map(k => `<th>${k}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr>${keys.map(k => `<td>${safe(String(row[k] ?? ""))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
 
-  const clientsTotal = document.getElementById("clientsTotal");
-  const employesActifs = document.getElementById("employesActifs");
-  const prestationsTotal = document.getElementById("prestationsTotal");
-
-  if (clientsTotal) clientsTotal.innerText = clientsUniques.size;
-  if (employesActifs) employesActifs.innerText = employesUniques.size;
-  if (prestationsTotal) prestationsTotal.innerText = total;
-
-  const tbody = document.querySelector("tbody");
-  tbody.innerHTML = "";
-
-  if (missions.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="5">Aucune mission enregistrée pour le moment.</td>
-      </tr>
-    `;
-    return;
-  }
-
-  missions.forEach(mission => {
-    let statusClass = "progress";
-
-    if (mission.statut === "Terminé") {
-      statusClass = "done";
-    }
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${mission.clients?.nom || "Client"}</td>
-        <td>${mission.service}</td>
-        <td>${mission.employes?.nom || "Ouvrier"}</td>
-        <td>${mission.prix} €</td>
-        <td>
-          <span class="status ${statusClass}">
-            ${mission.statut}
-          </span>
-        </td>
-      </tr>
-    `;
-  });
+function safe(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
